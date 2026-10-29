@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1f2a1c">
+<title>Setas Salamanca</title>
+<style>/*LEAFLET_CSS*/</style>
+<style>
+:root{--bg:#f6f4ee;--panel:#fffdf8;--txt:#1d1b16;--sub:#6b665b;--line:#ddd7c8;--acc:#7a3e12;--chip:#efe9dc}
+@media (prefers-color-scheme:dark){:root{--bg:#141310;--panel:#1f1d19;--txt:#eeeae0;--sub:#a59f92;--line:#38342c;--acc:#f0a35e;--chip:#2b2823}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font:15px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
+#mapa{position:fixed;inset:0}
+.barra{position:fixed;left:0;right:0;top:0;z-index:1000;padding:calc(env(safe-area-inset-top) + 6px) 8px 6px;background:color-mix(in srgb,var(--panel) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.fila{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.fila::-webkit-scrollbar{display:none}
+.fila+.fila{margin-top:6px}
+button{font:inherit;color:inherit;border:1px solid var(--line);background:var(--chip);border-radius:999px;padding:7px 12px;white-space:nowrap;min-height:36px}
+button.on{background:var(--acc);border-color:var(--acc);color:var(--panel);font-weight:600}
+.flotan{position:fixed;right:10px;z-index:1000;display:flex;flex-direction:column;gap:8px;bottom:calc(env(safe-area-inset-bottom) + 100px)}
+.flotan button{border-radius:12px;background:var(--panel);box-shadow:0 1px 4px #0003}
+.leyenda{position:fixed;left:10px;z-index:1000;bottom:calc(env(safe-area-inset-bottom) + 14px);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 8px;font-size:12px;color:var(--sub)}
+.grad{width:150px;height:10px;border-radius:3px;margin:3px 0;background:linear-gradient(90deg,#fff7bc,#fec44f,#fe9929,#d95f0e,#993404,#4a1a02)}
+.lg{display:flex;justify-content:space-between}
+.hoja{position:fixed;left:0;right:0;bottom:0;z-index:1100;max-height:72vh;overflow:auto;background:var(--panel);border-top:1px solid var(--line);border-radius:16px 16px 0 0;padding:12px 16px calc(env(safe-area-inset-bottom) + 16px);transform:translateY(105%);transition:transform .2s;box-shadow:0 -4px 18px #0003}
+.hoja.abierta{transform:none}
+.hoja h2{font-size:17px;margin:0 0 4px}
+.hoja h3{font-size:14px;margin:14px 0 4px;color:var(--sub);font-weight:600}
+.cerrar{float:right;padding:4px 10px;min-height:0}
+.grande{font-size:30px;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+td{padding:4px 2px;border-bottom:1px solid var(--line);vertical-align:top}
+td:last-child{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.sub{color:var(--sub);font-size:12.5px}
+.barrita{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:3px}
+.barrita i{display:block;height:100%;background:var(--acc)}
+p{margin:6px 0}
+.leaflet-container{background:var(--bg)}
+</style>
+</head>
+<body>
+<div id="mapa"></div>
+<div class="barra">
+  <div class="fila" id="especies"></div>
+  <div class="fila" id="dias"></div>
+</div>
+<div class="flotan">
+  <button id="bRanking">Cotos</button>
+  <button id="bMetodo">Método</button>
+  <button id="bFondo">Orto</button>
+  <button id="bYo">Yo</button>
+</div>
+<div class="leyenda"><div>Índice relativo</div><div class="grad"></div><div class="lg"><span>0</span><span>25</span><span>50</span><span>75+</span></div></div>
+<div class="hoja" id="hoja"><button class="cerrar" onclick="cerrar()">✕</button><div id="contenido"></div></div>
+<script>/*LEAFLET_JS*/</script>
+<script>
+/*DATOS*/
+const ESP = Object.keys(DATOS.especies);
+let sp = ESP[0], dia = 0;
+const W = DATOS.shape[1], H = DATOS.shape[0];
+const [a,, c,, e, f] = DATOS.transform;
+
+const mapa = L.map('mapa', {zoomControl:false, attributionControl:true}).fitBounds(DATOS.bounds);
+const ign = L.tileLayer('https://www.ign.es/wmts/ign-base?request=GetTile&service=WMTS&LAYER=IGNBaseTodo&TileMatrixSet=GoogleMapsCompatible&TileMatrix={z}&TileRow={y}&TileCol={x}&format=image/jpeg', {maxZoom:19, attribution:'© IGN'}).addTo(mapa);
+const orto = L.tileLayer('https://www.ign.es/wmts/pnoa-ma?SERVICE=WMTS&REQUEST=GetTile&LAYER=OI.OrthoimageCoverage&FORMAT=image/jpeg&TILEMATRIXSET=GoogleMapsCompatible&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {maxZoom:19, attribution:'© IGN PNOA'});
+L.geoJSON(DATOS.cotos_geojson, {style:{color:'#3b2a14', weight:1.5, fill:false}}).addTo(mapa);
+const capa = L.imageOverlay('data:,', DATOS.bounds, {opacity:.8, interactive:false}).addTo(mapa);
+
+// Escala YlOrBr: el índice satura en 75 porque ningún día junta todos los factores al máximo.
+const PAL = [[255,247,188],[254,196,79],[254,153,41],[217,95,14],[153,52,4],[74,26,2]];
+function color(v){ const t = Math.min(v/75,1)*(PAL.length-1), i = Math.min(Math.floor(t), PAL.length-2), u = t-i;
+  return PAL[i].map((x,k)=>Math.round(x+(PAL[i+1][k]-x)*u)); }
+const LUT = Array.from({length:101}, (_,v)=>color(v));
+
+const cache = {}, gris = {};
+function pixeles(b64){ return new Promise(ok=>{ const im = new Image(); im.onload=()=>{ const cv = document.createElement('canvas');
+  cv.width=W; cv.height=H; const cx = cv.getContext('2d'); cx.drawImage(im,0,0); ok(cx.getImageData(0,0,W,H).data); }; im.src='data:image/png;base64,'+b64; }); }
+async function valores(clave, b64){ if(!gris[clave]){ const d = await pixeles(b64), v = new Uint8Array(W*H); for(let i=0;i<v.length;i++) v[i]=d[i*4]; gris[clave]=v; } return gris[clave]; }
+async function pintar(){
+  const k = sp+dia;
+  if(!cache[k]){
+    const v = await valores('i'+k, DATOS.capas[sp][dia]);
+    const cv = document.createElement('canvas'); cv.width=W; cv.height=H;
+    const cx = cv.getContext('2d'), img = cx.createImageData(W,H), o = img.data;
+    for(let i=0;i<v.length;i++){ const x=v[i]; if(x===255) continue; const [r,g,b]=LUT[x]; o[i*4]=r;o[i*4+1]=g;o[i*4+2]=b;o[i*4+3]= x<3?70:230; }
+    cx.putImageData(img,0,0);
+    cache[k] = await new Promise(ok=>cv.toBlob(bl=>ok(URL.createObjectURL(bl))));
+  }
+  capa.setUrl(cache[k]);
+}
+
+const fmt = s => { const d = new Date(s+'T12:00'); return d.toLocaleDateString('es-ES',{weekday:'short', day:'numeric'}); };
+function botones(){
+  document.getElementById('especies').innerHTML = ESP.map(k=>`<button data-sp="${k}" class="${k===sp?'on':''}"><i>${DATOS.especies[k].nombre}</i></button>`).join('');
+  document.getElementById('dias').innerHTML = DATOS.dias.map((d,i)=>`<button data-d="${i}" class="${i===dia?'on':''}">${i===0?'Hoy':fmt(d)}</button>`).join('');
+}
+document.querySelector('.barra').addEventListener('click', ev=>{ const b = ev.target.closest('button'); if(!b) return;
+  if(b.dataset.sp) sp=b.dataset.sp; if(b.dataset.d) dia=+b.dataset.d; botones(); pintar(); if(ultimo) inspeccionar(ultimo); });
+
+const R = 6378137, merc = (la,lo)=>[R*lo*Math.PI/180, R*Math.log(Math.tan(Math.PI/4+la*Math.PI/360))];
+const clase = v => v<10?'muy bajo':v<25?'bajo':v<45?'medio':v<65?'alto':'muy alto';
+const pct = x => Math.round(x*100);
+const bar = x => `<div class="barrita"><i style="width:${pct(Math.max(0,Math.min(1,x)))}%"></i></div>`;
+let ultimo = null;
+async function inspeccionar(ll){
+  ultimo = ll;
+  const [x,y] = merc(ll.lat, ll.lng), j = Math.floor((x-c)/a), i = Math.floor((y-f)/e);
+  if(i<0||j<0||i>=H||j>=W) return;
+  const n = i*W+j, idc = (await valores('id', DATOS.id_coto))[n];
+  if(!idc){ abrir(`<h2>Fuera de coto</h2><p class="sub">Toca dentro de un coto micológico (línea marrón).</p>`); return; }
+  const v = (await valores('i'+sp+dia, DATOS.capas[sp][dia]))[n], h = (await valores('h'+sp, DATOS.habitat[sp]))[n];
+  const z = (await valores('z', DATOS.elev10))[n]*10, E = DATOS.especies[sp];
+  const r = calcular(sp, dia, c+(j+.5)*a, f+(i+.5)*e, z), fc = r.f, q = r.v;
+  const una = x => x.toFixed(1).replace('.', ',');
+  abrir(`<h2><i>${E.nombre}</i> · ${dia===0?'hoy':fmt(DATOS.dias[dia])}</h2>
+   <div class="sub">${DATOS.nombres[idc-1]} (${DATOS.cotos[idc-1]}) · ${z} m</div>
+   <div class="grande">${v} <span class="sub">/ 100 · ${clase(v)}</span></div>
+   <h3>Factores en esta celda (se multiplican)</h3>
+   <table>
+    <tr><td>Hábitat: árbol hospedador, dosel, altitud y ladera${bar(h/100)}</td><td>${h}%</td></tr>
+    <tr><td>Temporada de la especie${bar(fc.temporada)}</td><td>${pct(fc.temporada)}%</td></tr>
+    <tr><td>Agua: lluvia (${pct(r.f_lluvia)}%) × humedad del suelo (${pct(r.f_suelo)}%)${bar(fc.agua)}</td><td>${pct(fc.agua)}%</td></tr>
+    <tr><td>Temperatura del aire (óptimo ${una(E.t_opt)} °C)${bar(fc.temp)}</td><td>${pct(fc.temp)}%</td></tr>
+    <tr><td>Temperatura del suelo${E.t_suelo_min?` (pide ≥ ${E.t_suelo_min[1]} °C)`:' (no limita a esta especie)'}${bar(fc.t_suelo)}</td><td>${pct(fc.t_suelo)}%</td></tr>
+    <tr><td>Helada reciente (mín. &lt; −1 °C en 3 días)</td><td>${fc.helada<1?'sí, ×0,3':'no'}</td></tr>
+   </table>
+   <h3>Variables meteo en esta celda</h3>
+   <table>
+    <tr><td>Lluvia acumulada ${E.dias_lluvia} días</td><td>${una(q.lluvia)} mm</td></tr>
+    <tr><td>Días con ≥ 5 mm en esa ventana</td><td>${una(q.eventos)}</td></tr>
+    <tr><td>Temperatura media ${E.dias_temp} días</td><td>${una(r.t)} °C</td></tr>
+    <tr><td>Mínima de los últimos 3 días</td><td>${una(r.tmin3)} °C</td></tr>
+    <tr><td>Temperatura del suelo (6 cm, 10 días)</td><td>${una(r.tsuelo)} °C</td></tr>
+    <tr><td>Humedad del suelo (9–27 cm, 7 días)</td><td>${q.sm.toFixed(2).replace('.', ',')} m³/m³</td></tr>
+   </table>
+   <p class="sub">Interpolado entre los 4 puntos de Open-Meteo que rodean la celda (cada ~5 km). Las temperaturas se corrigen por la altitud de la celda. Los días futuros usan la previsión.</p>`);
+}
+
+// Misma cuenta que src/diario.py:factores; si cambias una, cambia la otra.
+const K = DATOS.constantes, NODO = new Map(DATOS.puntos.nodos.map(([i,j],k)=>[i+','+j,k]));
+const rampa = (x,lo,hi)=>Math.min(1,Math.max(0,(x-lo)/(hi-lo)));
+const trap = (x,[p0,p1,p2,p3])=>Math.min(1,Math.max(0,Math.min((x-p0)/(p1-p0),(p3-x)/(p3-p2))));
+function bilineal(arr, x, y){ const u=(x-K.origen[0])/K.paso, w=(y-K.origen[1])/K.paso, i=Math.floor(u), j=Math.floor(w), du=u-i, dv=w-j;
+  const g=(ii,jj)=>arr[NODO.get(ii+','+jj)];
+  return g(i,j)*(1-du)*(1-dv)+g(i+1,j)*du*(1-dv)+g(i,j+1)*(1-du)*dv+g(i+1,j+1)*du*dv; }
+function calcular(s, d, x, y, z){
+  const p = DATOS.especies[s], P = DATOS.puntos.valores[s][d], v = {};
+  for(const k in P) v[k] = bilineal(P[k], x, y);
+  const dz = z - bilineal(DATOS.puntos.elev, x, y), corr = K.gradiente*dz;
+  let f_lluvia = rampa(v.lluvia, ...p.lluvia_mm);
+  if(p.tormentas) f_lluvia *= 0.6 + 0.4*Math.min(1, v.eventos/2);
+  const f_suelo = rampa(v.sm, ...K.sm), t = v.t+corr, tmin3 = v.tmin3+corr, tsuelo = v.tsuelo+corr;
+  const f = {temporada: trap(K.doy[d], p.temporada), agua: Math.sqrt(f_lluvia*f_suelo),
+    temp: Math.exp(-0.5*((t-p.t_opt)/p.t_sd)**2), helada: tmin3 < -1 ? 0.3 : 1,
+    t_suelo: p.t_suelo_min ? rampa(tsuelo, ...p.t_suelo_min) : 1};
+  return {f, v, f_lluvia, f_suelo, t, tmin3, tsuelo};
+}
+mapa.on('click', ev=>inspeccionar(ev.latlng));
+
+function abrir(html){ document.getElementById('contenido').innerHTML = html; document.getElementById('hoja').classList.add('abierta'); }
+function cerrar(){ document.getElementById('hoja').classList.remove('abierta'); ultimo=null; }
+
+document.getElementById('bRanking').onclick = ()=>{ ultimo=null;
+  const r = DATOS.resumen[sp][dia].map((v,i)=>[v,i]).sort((x,y)=>y[0]-x[0]);
+  abrir(`<h2>Cotos · <i>${DATOS.especies[sp].nombre}</i> · ${dia===0?'hoy':fmt(DATOS.dias[dia])}</h2>
+   <p class="sub">Índice medio del coto. La media diluye las mejores zonas: mira el mapa dentro de cada coto.</p>
+   <table>${r.map(([v,i])=>`<tr><td>${DATOS.nombres[i]}<div class="sub">${DATOS.cotos[i]}</div>${bar(v/75)}</td><td>${v}</td></tr>`).join('')}</table>`); };
+
+document.getElementById('bMetodo').onclick = ()=>{ ultimo=null; abrir(METODO); };
+let enOrto=false; document.getElementById('bFondo').onclick = ev=>{ enOrto=!enOrto; if(enOrto){mapa.removeLayer(ign);orto.addTo(mapa);}else{mapa.removeLayer(orto);ign.addTo(mapa);} ev.target.textContent = enOrto?'Mapa':'Orto'; capa.bringToFront(); };
+let yo=null; document.getElementById('bYo').onclick = ()=>{ if(!navigator.geolocation){ alert('Este navegador no da la posición.'); return; }
+  navigator.geolocation.getCurrentPosition(p=>{ const ll=[p.coords.latitude,p.coords.longitude]; if(yo) yo.setLatLng(ll); else yo=L.circleMarker(ll,{radius:7,color:'#fff',weight:3,fillColor:'#1a73e8',fillOpacity:1}).addTo(mapa); mapa.setView(ll,14); },
+  err=>alert('No se pudo obtener la posición: '+err.message), {enableHighAccuracy:true, timeout:15000}); };
+
+const METODO = `<h2>Cómo se calcula</h2>
+<p><b>Índice = Hábitat × Temporada × Agua × Temperatura × T. suelo × Helada</b>, de 0 a 100. Es un <b>índice relativo</b>, no una probabilidad calibrada: no hay datos públicos de fructificación con fecha y lugar en estos cotos para calibrarlo.</p>
+<h3>Hábitat (estático)</h3>
+<p>Árbol hospedador y su ocupación del Mapa Forestal de España 1:25.000 (MITECO), cobertura de arbolado, altitud del MDT25 (IGN) y forma de la ladera. <i>B. edulis</i> admite también jarales de <i>Cistus</i> (Alonso Ponce et al. 2011). La amanita prefiere bosque claro y solanas.</p>
+<h3>Agua</h3>
+<p>Lluvia acumulada (26 días para <i>B. edulis</i>, según Brejon Lamartinière y Hoffman 2025; 20 días para las especies de verano, según MICOCYL/CESEFOR, que además valora el número de tormentas) combinada con la humedad del suelo a 9–27 cm. En pinares mediterráneos de CyL la humedad del suelo predice la producción igual de bien que la lluvia (Olano et al. 2020), y la lluvia actúa con un mes de retraso (Karavani et al. 2018).</p>
+<h3>Temperatura</h3>
+<p>Media de 20 días frente a un óptimo por especie: 13 °C para <i>B. edulis</i> (Brejon Lamartinière y Hoffman 2025); valores más cálidos para <i>B. aereus</i>, <i>B. reticulatus</i> y la oronja, que son termófilas. Para la oronja se exige además suelo cálido. Una helada reciente frena la fructificación.</p>
+<h3>Datos</h3>
+<p>Meteo: Open-Meteo (modelos ECMWF/DWD; 40 días pasados y 7 de previsión, con puntos cada ~5 km). Cotos: WFS de MICOCYL / Junta de Castilla y León. La humedad de suelo por satélite (Copernicus SWI 1 km) va con ~6 semanas de retraso y no entra en el índice diario.</p>
+<p class="sub">Los umbrales sin estudio propio son heurísticos y están marcados [H] en la revisión bibliográfica (docs/revision-bibliografica.md). Generado el ${DATOS.generado}.</p>
+<p class="sub">Recuerda: hace falta permiso de recolección en vigor en cada coto. Nunca comas una seta sin identificación segura: la oronja se confunde en fase de huevo con <i>Amanita phalloides</i>.</p>`;
+
+botones(); pintar();
+</script>
+</body>
+</html>

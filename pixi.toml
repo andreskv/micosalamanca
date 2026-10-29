@@ -1,0 +1,24 @@
+[workspace]
+channels = ["conda-forge"]
+name = "MicoSalamanca"
+platforms = ["win-64", "linux-64"]
+version = "0.1.0"
+
+[tasks]
+habitat = "python src/habitat.py"
+diario = "python src/diario.py"
+
+[target.win-64.activation.env]
+GDAL_DATA = "$CONDA_PREFIX/Library/share/gdal"
+
+[dependencies]
+python = "3.12.*"
+geopandas = ">=1.2.0,<2"
+pyogrio = ">=0.13.0,<0.14"
+rasterio = ">=1.5.2,<2"
+numpy = ">=2.5.4,<3"
+scipy = ">=1.18.1,<2"
+requests = ">=2.34.2,<3"
+shapely = ">=2.2.0,<3"
+pyproj = ">=3.8.0,<4"
+pillow = ">=13.0.0,<14"

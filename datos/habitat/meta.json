@@ -1,0 +1,57 @@
+{
+ "transform": [
+  65.0,
+  0.0,
+  -765166.4221690365,
+  0.0,
+  -65.0,
+  5060621.748789762
+ ],
+ "shape": [
+  2476,
+  2649
+ ],
+ "crs": "EPSG:3857",
+ "bounds_latlon": [
+  [
+   40.231783047876064,
+   -6.873606919294956
+  ],
+  [
+   41.32650992796494,
+   -5.3268427473337585
+  ]
+ ],
+ "cotos": [
+  "PMSA-50001",
+  "SA-50002",
+  "SA-50003",
+  "SA-50004",
+  "SA-50005",
+  "SA-50007",
+  "SA-50008",
+  "SA-50009",
+  "SA-50010",
+  "SA-50011",
+  "SA-50012",
+  "SA-50013",
+  "SA-50014",
+  "SA-50015"
+ ],
+ "nombres": [
+  "Parque Micológico Sierras de Francia, Béjar, Quilamas y El Rebollar",
+  "Miranda de Azán",
+  "El Bodón - Fuenteguinaldo",
+  "Berrocal de Huebra",
+  "Ribera de Cañedo",
+  "Aldeatejada - Carrascal de Barregas",
+  "Larrodrigo",
+  "Pedraza de Alba",
+  "Calzada de Don Diego (2)",
+  "Calzada de Don Diego",
+  "Membribe de la Sierra",
+  "Parada de Arriba - Galindo y Perahuy",
+  "Carrascal de Barregas",
+  "Morille"
+ ]
+}

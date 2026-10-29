@@ -1,0 +1,7 @@
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+datos/raw/
+salida/
+.env
+__pycache__/
