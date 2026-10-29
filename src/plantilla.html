@@ -66,7 +66,9 @@ const mapa = L.map('mapa', {zoomControl:false, attributionControl:true}).fitBoun
 const ign = L.tileLayer('https://www.ign.es/wmts/ign-base?request=GetTile&service=WMTS&LAYER=IGNBaseTodo&TileMatrixSet=GoogleMapsCompatible&TileMatrix={z}&TileRow={y}&TileCol={x}&format=image/jpeg', {maxZoom:19, attribution:'© IGN'}).addTo(mapa);
 const orto = L.tileLayer('https://www.ign.es/wmts/pnoa-ma?SERVICE=WMTS&REQUEST=GetTile&LAYER=OI.OrthoimageCoverage&FORMAT=image/jpeg&TILEMATRIXSET=GoogleMapsCompatible&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}', {maxZoom:19, attribution:'© IGN PNOA'});
 L.geoJSON(DATOS.cotos_geojson, {style:{color:'#3b2a14', weight:1.5, fill:false}}).addTo(mapa);
-const capa = L.imageOverlay('data:,', DATOS.bounds, {opacity:.8, interactive:false}).addTo(mapa);
+const capa = L.layerGroup().addTo(mapa);
+const R = 6378137, merc = (la,lo)=>[R*lo*Math.PI/180, R*Math.log(Math.tan(Math.PI/4+la*Math.PI/360))];
+const geo = (x,y)=>[(2*Math.atan(Math.exp(y/R))-Math.PI/2)*180/Math.PI, x/R*180/Math.PI];
 
 // Escala YlOrBr: el índice satura en 75 porque ningún día junta todos los factores al máximo.
 const PAL = [[255,247,188],[254,196,79],[254,153,41],[217,95,14],[153,52,4],[74,26,2]];
@@ -74,21 +76,32 @@ function color(v){ const t = Math.min(v/75,1)*(PAL.length-1), i = Math.min(Math.
   return PAL[i].map((x,k)=>Math.round(x+(PAL[i+1][k]-x)*u)); }
 const LUT = Array.from({length:101}, (_,v)=>color(v));
 
-const cache = {}, gris = {};
-function pixeles(b64){ return new Promise(ok=>{ const im = new Image(); im.onload=()=>{ const cv = document.createElement('canvas');
-  cv.width=W; cv.height=H; const cx = cv.getContext('2d'); cx.drawImage(im,0,0); ok(cx.getImageData(0,0,W,H).data); }; im.src='data:image/png;base64,'+b64; }); }
-async function valores(clave, b64){ if(!gris[clave]){ const d = await pixeles(b64), v = new Uint8Array(W*H); for(let i=0;i<v.length;i++) v[i]=d[i*4]; gris[clave]=v; } return gris[clave]; }
+// Todo va en teselas de ≤ 1024 px: Safari en iOS no pinta imágenes ni canvas de varios megapíxeles.
+const cache = {}, gris = {}, lienzo = document.createElement('canvas'), ctx = lienzo.getContext('2d', {willReadFrequently:true});
+function tesela(b64){ return new Promise((ok,ko)=>{ const im = new Image(); im.onload=()=>{ lienzo.width=im.width; lienzo.height=im.height;
+  ctx.drawImage(im,0,0); ok({w:im.width, h:im.height, d:ctx.getImageData(0,0,im.width,im.height).data}); }; im.onerror=ko; im.src='data:image/png;base64,'+b64; }); }
+async function valores(clave, teselas, vacio=255){
+  if(!gris[clave]){ const v = new Uint8Array(W*H).fill(vacio);
+    for(const [r0,c0,b64] of teselas){ const t = await tesela(b64);
+      for(let r=0;r<t.h;r++){ const base=(r0+r)*W+c0; for(let q=0;q<t.w;q++) v[base+q]=t.d[(r*t.w+q)*4]; } }
+    gris[clave]=v; }
+  return gris[clave]; }
 async function pintar(){
   const k = sp+dia;
   if(!cache[k]){
-    const v = await valores('i'+k, DATOS.capas[sp][dia]);
-    const cv = document.createElement('canvas'); cv.width=W; cv.height=H;
-    const cx = cv.getContext('2d'), img = cx.createImageData(W,H), o = img.data;
-    for(let i=0;i<v.length;i++){ const x=v[i]; if(x===255) continue; const [r,g,b]=LUT[x]; o[i*4]=r;o[i*4+1]=g;o[i*4+2]=b;o[i*4+3]= x<3?70:230; }
-    cx.putImageData(img,0,0);
-    cache[k] = await new Promise(ok=>cv.toBlob(bl=>ok(URL.createObjectURL(bl))));
+    const v = await valores('i'+k, DATOS.capas[sp][dia]); cache[k] = [];
+    for(const [r0,c0] of DATOS.capas[sp][dia]){
+      const w = Math.min(1024, W-c0), h = Math.min(1024, H-r0);
+      lienzo.width=w; lienzo.height=h; const img = ctx.createImageData(w,h), o = img.data;
+      for(let r=0;r<h;r++) for(let q=0;q<w;q++){ const x=v[(r0+r)*W+c0+q]; if(x===255) continue; const [rr,g,b]=LUT[x], p=(r*w+q)*4;
+        o[p]=rr;o[p+1]=g;o[p+2]=b;o[p+3]= x<3?70:230; }
+      ctx.putImageData(img,0,0);
+      const url = await new Promise(ok=>lienzo.toBlob(bl=>ok(URL.createObjectURL(bl))));
+      cache[k].push([[geo(c+(c0+w)*a, f+(r0+h)*e), geo(c+c0*a, f+r0*e)], url]);
+    }
   }
-  capa.setUrl(cache[k]);
+  capa.clearLayers();
+  for(const [b,url] of cache[k]) L.imageOverlay(url, b, {opacity:.8, interactive:false}).addTo(capa);
 }
 
 const fmt = s => { const d = new Date(s+'T12:00'); return d.toLocaleDateString('es-ES',{weekday:'short', day:'numeric'}); };
@@ -99,7 +112,6 @@ function botones(){
 document.querySelector('.barra').addEventListener('click', ev=>{ const b = ev.target.closest('button'); if(!b) return;
   if(b.dataset.sp) sp=b.dataset.sp; if(b.dataset.d) dia=+b.dataset.d; botones(); pintar(); if(ultimo) inspeccionar(ultimo); });
 
-const R = 6378137, merc = (la,lo)=>[R*lo*Math.PI/180, R*Math.log(Math.tan(Math.PI/4+la*Math.PI/360))];
 const clase = v => v<10?'muy bajo':v<25?'bajo':v<45?'medio':v<65?'alto':'muy alto';
 const pct = x => Math.round(x*100);
 const bar = x => `<div class="barrita"><i style="width:${pct(Math.max(0,Math.min(1,x)))}%"></i></div>`;
@@ -108,7 +120,7 @@ async function inspeccionar(ll){
   ultimo = ll;
   const [x,y] = merc(ll.lat, ll.lng), j = Math.floor((x-c)/a), i = Math.floor((y-f)/e);
   if(i<0||j<0||i>=H||j>=W) return;
-  const n = i*W+j, idc = (await valores('id', DATOS.id_coto))[n];
+  const n = i*W+j, idc = (await valores('id', DATOS.id_coto, 0))[n];
   if(!idc){ abrir(`<h2>Fuera de coto</h2><p class="sub">Toca dentro de un coto micológico (línea marrón).</p>`); return; }
   const v = (await valores('i'+sp+dia, DATOS.capas[sp][dia]))[n], h = (await valores('h'+sp, DATOS.habitat[sp]))[n];
   const z = (await valores('z', DATOS.elev10))[n]*10, E = DATOS.especies[sp];
@@ -169,7 +181,7 @@ document.getElementById('bRanking').onclick = ()=>{ ultimo=null;
    <table>${r.map(([v,i])=>`<tr><td>${DATOS.nombres[i]}<div class="sub">${DATOS.cotos[i]}</div>${bar(v/75)}</td><td>${v}</td></tr>`).join('')}</table>`); };
 
 document.getElementById('bMetodo').onclick = ()=>{ ultimo=null; abrir(METODO); };
-let enOrto=false; document.getElementById('bFondo').onclick = ev=>{ enOrto=!enOrto; if(enOrto){mapa.removeLayer(ign);orto.addTo(mapa);}else{mapa.removeLayer(orto);ign.addTo(mapa);} ev.target.textContent = enOrto?'Mapa':'Orto'; capa.bringToFront(); };
+let enOrto=false; document.getElementById('bFondo').onclick = ev=>{ enOrto=!enOrto; if(enOrto){mapa.removeLayer(ign);orto.addTo(mapa);}else{mapa.removeLayer(orto);ign.addTo(mapa);} ev.target.textContent = enOrto?'Mapa':'Orto'; };
 let yo=null; document.getElementById('bYo').onclick = ()=>{ if(!navigator.geolocation){ alert('Este navegador no da la posición.'); return; }
   navigator.geolocation.getCurrentPosition(p=>{ const ll=[p.coords.latitude,p.coords.longitude]; if(yo) yo.setLatLng(ll); else yo=L.circleMarker(ll,{radius:7,color:'#fff',weight:3,fillColor:'#1a73e8',fillOpacity:1}).addTo(mapa); mapa.setView(ll,14); },
   err=>alert('No se pudo obtener la posición: '+err.message), {enableHighAccuracy:true, timeout:15000}); };

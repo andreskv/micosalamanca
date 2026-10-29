@@ -113,10 +113,18 @@ def factores(v, sp, doy, dz):
                  if p["t_suelo_min"] else np.ones_like(t)))
 
 
-def png_b64(arr):
-    buf = io.BytesIO()
-    Image.fromarray(arr).save(buf, format="PNG", optimize=True)
-    return base64.b64encode(buf.getvalue()).decode()
+def png_b64(arr, vacio=255, lado=1024):
+    """Teselas [fila, col, png] de como mucho 1 MP: Safari en iOS no decodifica bien imágenes de más de ~5 MP."""
+    teselas = []
+    for r0 in range(0, arr.shape[0], lado):
+        for c0 in range(0, arr.shape[1], lado):
+            t = arr[r0:r0 + lado, c0:c0 + lado]
+            if (t == vacio).all():
+                continue
+            buf = io.BytesIO()
+            Image.fromarray(t).save(buf, format="PNG", optimize=True)
+            teselas.append([r0, c0, base64.b64encode(buf.getvalue()).decode()])
+    return teselas
 
 
 def main():
@@ -163,7 +171,7 @@ def main():
         puntos=dict(nodos=nodos.tolist(), elev=m["elev"].tolist(), valores=puntos),
         capas=capas,
         habitat={sp: png_b64(np.where(dentro, np.round(hab[sp] * 100), 255).astype("uint8")) for sp in ESPECIES},
-        elev10=png_b64(elev10), id_coto=png_b64(id_coto),
+        elev10=png_b64(np.where(dentro, elev10, 255).astype("uint8")), id_coto=png_b64(id_coto, vacio=0),
         cotos_geojson=json.loads((HAB / "cotos.geojson").read_text(encoding="utf-8")))
     html = (RAIZ / "src" / "plantilla.html").read_text(encoding="utf-8")
     html = html.replace("/*LEAFLET_CSS*/", (RAIZ / "vendor" / "leaflet.css").read_text(encoding="utf-8"))
