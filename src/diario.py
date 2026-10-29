@@ -51,17 +51,23 @@ def bilineal(nodos, origen, valores, x, y):
 def open_meteo(lat, lon):
     out = []
     for i in range(0, len(lat), 40):
-        for intento in range(5):
-            r = requests.get("https://api.open-meteo.com/v1/forecast", timeout=120, params=dict(
-                latitude=",".join(f"{v:.4f}" for v in lat[i:i + 40]),
-                longitude=",".join(f"{v:.4f}" for v in lon[i:i + 40]),
-                daily="precipitation_sum,temperature_2m_mean,temperature_2m_min",
-                hourly="soil_temperature_6cm,soil_moisture_9_to_27cm",
-                past_days=PASADO, forecast_days=FUTURO, timezone="Europe/Madrid"))
-            # los runners de GitHub comparten IP y Open-Meteo limita por IP
-            if r.status_code != 429:
-                break
-            time.sleep(60 * (intento + 1))
+        for intento in range(6):
+            try:
+                r = requests.get("https://api.open-meteo.com/v1/forecast", timeout=(20, 90), params=dict(
+                    latitude=",".join(f"{v:.4f}" for v in lat[i:i + 40]),
+                    longitude=",".join(f"{v:.4f}" for v in lon[i:i + 40]),
+                    daily="precipitation_sum,temperature_2m_mean,temperature_2m_min",
+                    hourly="soil_temperature_6cm,soil_moisture_9_to_27cm",
+                    past_days=PASADO, forecast_days=FUTURO, timezone="Europe/Madrid"))
+                # los runners de GitHub comparten IP y Open-Meteo limita por IP
+                if r.status_code != 429:
+                    break
+            except requests.RequestException as err:
+                # ya visto en Actions: timeout en el saludo TLS con api.open-meteo.com
+                if intento == 5:
+                    raise
+                print(f"Open-Meteo falló ({type(err).__name__}), reintento {intento + 1}/5")
+            time.sleep(30 * (intento + 1))
         r.raise_for_status()
         j = r.json()
         out += j if isinstance(j, list) else [j]
