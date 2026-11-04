@@ -19,6 +19,8 @@ SALIDA = RAIZ / "salida"
 PASADO, FUTURO = 40, 8
 PASO_PUNTOS = 6500.0   # m en 3857, ~5 km sobre el terreno
 GRADIENTE_T = -0.0065  # °C/m, gradiente térmico estándar
+# la lluvia de los últimos días todavía no ha dado setas: actúa con ~1 mes de retraso [KA18]; 7 d [H]
+RETRASO_LLUVIA = 7
 SM_RANGO = (0.10, 0.25)  # m3/m3 a 9-27 cm, de suelo seco a húmedo [H]
 
 
@@ -90,8 +92,8 @@ def ventana(x, d, n, f=np.nanmean):
 def variables_punto(m, sp, d):
     p = ESPECIES[sp]
     return dict(
-        lluvia=ventana(m["p"], d, p["dias_lluvia"], np.nansum),
-        eventos=ventana((m["p"] >= 5).astype("float32"), d, p["dias_lluvia"], np.nansum),
+        lluvia=ventana(m["p"], d - RETRASO_LLUVIA, p["dias_lluvia"], np.nansum),
+        eventos=ventana((m["p"] >= 5).astype("float32"), d - RETRASO_LLUVIA, p["dias_lluvia"], np.nansum),
         t=ventana(m["t"], d, p["dias_temp"]), tsuelo=ventana(m["tsuelo"], d, 10),
         tmin3=ventana(m["tmin"], d, 3, np.nanmin), sm=ventana(m["sm"], d, 7))
 
@@ -166,7 +168,7 @@ def main():
         bounds=meta["bounds_latlon"], transform=meta["transform"], shape=meta["shape"],
         cotos=meta["cotos"], nombres=meta["nombres"], resumen=resumen,
         especies={k: {kk: vv for kk, vv in v.items()} for k, v in ESPECIES.items()},
-        constantes=dict(paso=PASO_PUNTOS, origen=origen, gradiente=GRADIENTE_T, sm=SM_RANGO,
+        constantes=dict(retraso=RETRASO_LLUVIA, paso=PASO_PUNTOS, origen=origen, gradiente=GRADIENTE_T, sm=SM_RANGO,
                         doy=[dt.date.fromisoformat(s).timetuple().tm_yday for s in m["dias"][hoy:hoy + FUTURO]]),
         puntos=dict(nodos=nodos.tolist(), elev=m["elev"].tolist(), valores=puntos),
         capas=capas,

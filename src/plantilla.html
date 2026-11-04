@@ -140,7 +140,7 @@ async function inspeccionar(ll){
    </table>
    <h3>Variables meteo en esta celda</h3>
    <table>
-    <tr><td>Lluvia acumulada ${E.dias_lluvia} días</td><td>${una(q.lluvia)} mm</td></tr>
+    <tr><td>Lluvia de ${E.dias_lluvia} días, que acaba hace ${K.retraso} días</td><td>${una(q.lluvia)} mm</td></tr>
     <tr><td>Días con ≥ 5 mm en esa ventana</td><td>${una(q.eventos)}</td></tr>
     <tr><td>Temperatura media ${E.dias_temp} días</td><td>${una(r.t)} °C</td></tr>
     <tr><td>Mínima de los últimos 3 días</td><td>${una(r.tmin3)} °C</td></tr>
@@ -189,11 +189,11 @@ let yo=null; document.getElementById('bYo').onclick = ()=>{ if(!navigator.geoloc
 const METODO = `<h2>Cómo se calcula</h2>
 <p><b>Índice = Hábitat × Temporada × Agua × Temperatura × T. suelo × Helada</b>, de 0 a 100. Es un <b>índice relativo</b>, no una probabilidad calibrada: no hay datos públicos de fructificación con fecha y lugar en estos cotos para calibrarlo.</p>
 <h3>Hábitat (estático)</h3>
-<p>Árbol hospedador y su ocupación del Mapa Forestal de España 1:25.000 (MITECO), cobertura de arbolado, altitud del MDT25 (IGN) y forma de la ladera. <i>B. edulis</i> admite también jarales de <i>Cistus</i> (Alonso Ponce et al. 2011). La amanita prefiere bosque claro y solanas.</p>
+<p>Árbol hospedador y su ocupación del Mapa Forestal de España 1:25.000 (MITECO), cobertura de arbolado, altitud del MDT25 (IGN) y forma de la ladera. <i>B. edulis</i> admite también jarales de <i>Cistus</i> (Alonso Ponce et al. 2011). La amanita prefiere bosque claro y solanas. El <i>níscalo</i> (grupo <i>Lactarius deliciosus</i>) va con pinos: negral, silvestre, piñonero (Martínez-Peña et al. 2012; Taye et al. 2016; Ágreda et al. 2014).</p>
 <h3>Agua</h3>
-<p>Lluvia acumulada (26 días para <i>B. edulis</i>, según Brejon Lamartinière y Hoffman 2025; 20 días para las especies de verano, según MICOCYL/CESEFOR, que además valora el número de tormentas) combinada con la humedad del suelo a 9–27 cm. En pinares mediterráneos de CyL la humedad del suelo predice la producción igual de bien que la lluvia (Olano et al. 2020), y la lluvia actúa con un mes de retraso (Karavani et al. 2018).</p>
+<p>Lluvia acumulada (26 días para <i>B. edulis</i>, según Brejon Lamartinière y Hoffman 2025; 20 días para las especies de verano, según MICOCYL/CESEFOR, que además valora el número de tormentas) combinada con la humedad del suelo a 9–27 cm. En pinares mediterráneos de CyL la humedad del suelo predice la producción igual de bien que la lluvia (Olano et al. 2020), y la lluvia actúa con un mes de retraso (Karavani et al. 2018). Por eso la ventana de lluvia termina 7 días antes del día del mapa: la lluvia de esta semana cuenta para las setas de la semana que viene, no para las de hoy. La humedad del suelo, en cambio, es la de los últimos 7 días, porque actúa en el mismo mes.</p>
 <h3>Temperatura</h3>
-<p>Media de 20 días frente a un óptimo por especie: 13 °C para <i>B. edulis</i> (Brejon Lamartinière y Hoffman 2025); valores más cálidos para <i>B. aereus</i>, <i>B. reticulatus</i> y la oronja, que son termófilas. Para la oronja se exige además suelo cálido. Una helada reciente frena la fructificación.</p>
+<p>Media de 20 días frente a un óptimo por especie: 13 °C para <i>B. edulis</i> (Brejon Lamartinière y Hoffman 2025); valores más cálidos para <i>B. aereus</i>, <i>B. reticulatus</i> y la oronja, que son termófilas. Para la oronja se exige además suelo cálido. El níscalo prefiere fresco: su producción baja con temperaturas altas (De la Varga et al. 2013), así que su óptimo es 11 °C y su ventana de lluvia, 30 días. Una helada reciente frena la fructificación.</p>
 <h3>Datos</h3>
 <p>Meteo: Open-Meteo (modelos ECMWF/DWD; 40 días pasados y 7 de previsión, con puntos cada ~5 km). Cotos: WFS de MICOCYL / Junta de Castilla y León. La humedad de suelo por satélite (Copernicus SWI 1 km) va con ~6 semanas de retraso y no entra en el índice diario.</p>
 <p class="sub">Los umbrales sin estudio propio son heurísticos y están marcados [H] en la revisión bibliográfica (docs/revision-bibliografica.md). Generado el ${DATOS.generado}.</p>

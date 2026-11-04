@@ -35,6 +35,10 @@ HOSPEDADORES = {
         "Quercus ilex": 0.8, "Quercus faginea": 0.6, "Arbutus unedo": 0.4,
         "Pinus pinaster": 0.3,
     },
+    "deliciosus": {  # grupo deliciosus, ligado a pinares [MP12][TA16][OL20][AG14]; pesos [H]
+        "Pinus pinaster": 1.0, "Pinus sylvestris": 1.0, "Pinus pinea": 0.8,
+        "Pinus nigra": 0.7, "Pinus radiata": 0.6, "Pinus halepensis": 0.8,
+    },
 }
 
 ESPECIES = {
@@ -86,5 +90,17 @@ ESPECIES = {
         dosel=(10, 25, 70, 95),               # bosque claro y soleado [RDB][AMJC]
         jara=0.0,
         insolacion=0.25,                      # solanas y levante [AMJC]
+    ),
+    "deliciosus": dict(
+        nombre="Lactarius deliciosus", comun="Níscalo",
+        temporada=(255, 285, 335, 360),       # muestreos de septiembre a diciembre [MP12b]; micelio máximo en invierno [DV13]
+        altitud=(400, 600, 1500, 1800),       # [H]
+        dias_lluvia=30, lluvia_mm=(25, 90),   # la lluvia actúa con ~1 mes de retraso [KA18]; umbrales [H]
+        tormentas=False,
+        dias_temp=20, t_opt=11.0, t_sd=4.0,   # correlación negativa con Tmax y Tmin [DV13]; óptimo [H]
+        t_suelo_min=None,
+        dosel=(5, 30, 100, 101),
+        jara=0.0,
+        insolacion=0.0,
     ),
 }
