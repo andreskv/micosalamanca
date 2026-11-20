@@ -34,6 +34,14 @@ Fecha de la revisión: 29-oct-2026; níscalo añadido el 4-nov-2026; seta de car
 | Temperatura del suelo | Solo en la oronja: rampa de 13 a 17 °C (media de 10 días a 6 cm) | [H] |
 | Helada | Factor 0,3 si la mínima de 3 días baja de −1 °C | [H]; en [BL26] el seguimiento termina «con la primera helada fuerte» |
 
+## 2b. Cotos y monte
+
+Desde el 20-nov-2026 el mapa cubre también el monte de toda la provincia, no solo los cotos:
+
+- **Qué se muestra fuera de coto:** las teselas del MFE25 de Salamanca con uso arbolado, arbolado ralo, arbolado disperso o desarbolado, siempre que alguna especie tenga ahí un hábitat ≥ 0,3 [H]. Quedan fuera los cultivos, el agua y lo urbano. Son unos 3,1 millones de celdas, frente a 0,3 millones en los cotos.
+- **Mismo método:** el hábitat y la meteo se calculan igual dentro y fuera de los cotos. Para cubrir la provincia, los puntos de Open-Meteo pasan de ~5 km a ~7,5 km. Sigue siendo más fino que los modelos de origen, que van a 7–11 km.
+- **Aviso legal:** fuera de coto la recolección es **episódica**: sin permiso, solo recreativa o de autoconsumo, sin vender y como máximo 3 kg por persona y día. No vale en terrenos señalizados como «Aprovechamiento de setas reservado» (Decreto 31/2017 de Castilla y León, BOCyL 9-oct-2017, arts. 13 y 23). El MFE no distingue monte público de finca privada.
+
 ## 3. Lo que este índice NO es
 
 - **No es una probabilidad calibrada.** No hay series públicas de fructificación con fecha y coordenada en estos cotos. Las parcelas de CESEFOR/Junta (las que usan [MP12][OL20]) son de Soria y no están abiertas.

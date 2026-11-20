@@ -47,6 +47,7 @@ p{margin:6px 0}
   <div class="fila" id="dias"></div>
 </div>
 <div class="flotan">
+  <button id="bVista">Solo cotos</button>
   <button id="bRanking">Cotos</button>
   <button id="bMetodo">Método</button>
   <button id="bFondo">Orto</button>
@@ -78,22 +79,23 @@ const LUT = Array.from({length:101}, (_,v)=>color(v));
 
 // Todo va en teselas de ≤ 1024 px: Safari en iOS no pinta imágenes ni canvas de varios megapíxeles.
 const cache = {}, gris = {}, lienzo = document.createElement('canvas'), ctx = lienzo.getContext('2d', {willReadFrequently:true});
-function tesela(b64){ return new Promise((ok,ko)=>{ const im = new Image(); im.onload=()=>{ lienzo.width=im.width; lienzo.height=im.height;
-  ctx.drawImage(im,0,0); ok({w:im.width, h:im.height, d:ctx.getImageData(0,0,im.width,im.height).data}); }; im.onerror=ko; im.src='data:image/png;base64,'+b64; }); }
+function tesela(ruta){ return new Promise((ok,ko)=>{ const im = new Image(); im.onload=()=>{ lienzo.width=im.width; lienzo.height=im.height;
+  ctx.drawImage(im,0,0); ok({w:im.width, h:im.height, d:ctx.getImageData(0,0,im.width,im.height).data}); }; im.onerror=ko; im.src=ruta; }); }
 async function valores(clave, teselas, vacio=255){
   if(!gris[clave]){ const v = new Uint8Array(W*H).fill(vacio);
-    for(const [r0,c0,b64] of teselas){ const t = await tesela(b64);
+    for(const [r0,c0,ruta] of teselas){ const t = await tesela(ruta);
       for(let r=0;r<t.h;r++){ const base=(r0+r)*W+c0; for(let q=0;q<t.w;q++) v[base+q]=t.d[(r*t.w+q)*4]; } }
     gris[clave]=v; }
   return gris[clave]; }
+let soloCotos = false;
 async function pintar(){
-  const k = sp+dia;
+  const k = sp+dia+(soloCotos?'c':'');
   if(!cache[k]){
-    const v = await valores('i'+k, DATOS.capas[sp][dia]); cache[k] = [];
+    const v = await valores('i'+sp+dia, DATOS.capas[sp][dia]), ids = soloCotos ? await valores('id', DATOS.id_coto, 0) : null; cache[k] = [];
     for(const [r0,c0] of DATOS.capas[sp][dia]){
       const w = Math.min(1024, W-c0), h = Math.min(1024, H-r0);
       lienzo.width=w; lienzo.height=h; const img = ctx.createImageData(w,h), o = img.data;
-      for(let r=0;r<h;r++) for(let q=0;q<w;q++){ const x=v[(r0+r)*W+c0+q]; if(x===255) continue; const [rr,g,b]=LUT[x], p=(r*w+q)*4;
+      for(let r=0;r<h;r++) for(let q=0;q<w;q++){ const n=(r0+r)*W+c0+q, x=v[n]; if(x===255 || (ids && !ids[n])) continue; const [rr,g,b]=LUT[x], p=(r*w+q)*4;
         o[p]=rr;o[p+1]=g;o[p+2]=b;o[p+3]= x<3?70:230; }
       ctx.putImageData(img,0,0);
       const url = await new Promise(ok=>lienzo.toBlob(bl=>ok(URL.createObjectURL(bl))));
@@ -120,14 +122,14 @@ async function inspeccionar(ll){
   ultimo = ll;
   const [x,y] = merc(ll.lat, ll.lng), j = Math.floor((x-c)/a), i = Math.floor((y-f)/e);
   if(i<0||j<0||i>=H||j>=W) return;
-  const n = i*W+j, idc = (await valores('id', DATOS.id_coto, 0))[n];
-  if(!idc){ abrir(`<h2>Fuera de coto</h2><p class="sub">Toca dentro de un coto micológico (línea marrón).</p>`); return; }
-  const v = (await valores('i'+sp+dia, DATOS.capas[sp][dia]))[n], h = (await valores('h'+sp, DATOS.habitat[sp]))[n];
+  const n = i*W+j, idc = (await valores('id', DATOS.id_coto, 0))[n], v = (await valores('i'+sp+dia, DATOS.capas[sp][dia]))[n];
+  if(v===255 || (soloCotos && !idc)){ abrir(`<h2>Sin dato aquí</h2><p class="sub">${soloCotos?'Toca dentro de un coto micológico (línea marrón), o cambia a «Cotos + monte».':'Aquí no hay monte con hábitat apreciable para ninguna de las especies, o es cultivo, agua o zona urbana.'}</p>`); return; }
+  const h = (await valores('h'+sp, DATOS.habitat[sp]))[n];
   const z = (await valores('z', DATOS.elev10))[n]*10, E = DATOS.especies[sp];
   const r = calcular(sp, dia, c+(j+.5)*a, f+(i+.5)*e, z), fc = r.f, q = r.v;
   const una = x => x.toFixed(1).replace('.', ',');
   abrir(`<h2><i>${E.nombre}</i> · ${dia===0?'hoy':fmt(DATOS.dias[dia])}</h2>
-   <div class="sub">${DATOS.nombres[idc-1]} (${DATOS.cotos[idc-1]}) · ${z} m</div>
+   <div class="sub">${idc ? `${DATOS.nombres[idc-1]} (${DATOS.cotos[idc-1]})` : 'Monte fuera de coto'} · ${z} m</div>
    <div class="grande">${v} <span class="sub">/ 100 · ${clase(v)}</span></div>
    <h3>Factores en esta celda (se multiplican)</h3>
    <table>
@@ -147,6 +149,7 @@ async function inspeccionar(ll){
     <tr><td>Temperatura del suelo (6 cm, 10 días)</td><td>${una(r.tsuelo)} °C</td></tr>
     <tr><td>Humedad del suelo (9–27 cm, 7 días)</td><td>${q.sm.toFixed(2).replace('.', ',')} m³/m³</td></tr>
    </table>
+   ${idc ? '' : AVISO}
    <p class="sub">Interpolado entre los 4 puntos de Open-Meteo que rodean la celda (cada ~5 km). Las temperaturas se corrigen por la altitud de la celda. Los días futuros usan la previsión.</p>`);
 }
 
@@ -181,6 +184,8 @@ document.getElementById('bRanking').onclick = ()=>{ ultimo=null;
    <table>${r.map(([v,i])=>`<tr><td>${DATOS.nombres[i]}<div class="sub">${DATOS.cotos[i]}</div>${bar(v/75)}</td><td>${v}</td></tr>`).join('')}</table>`); };
 
 document.getElementById('bMetodo').onclick = ()=>{ ultimo=null; abrir(METODO); };
+document.getElementById('bVista').onclick = ev=>{ soloCotos=!soloCotos; ev.target.textContent = soloCotos?'Cotos + monte':'Solo cotos'; pintar(); if(ultimo) inspeccionar(ultimo); };
+const AVISO = `<h3>Fuera de coto: qué se puede hacer</h3><p class="sub">Es <b>aprovechamiento episódico</b>: sin permiso, solo para consumo propio o recreo, sin vender y como máximo <b>3 kg por persona y día</b> (Decreto 31/2017 de Castilla y León, art. 13). No vale si el terreno está señalizado como «Aprovechamiento de setas reservado» ni en las franjas de carretera. El mapa no distingue monte público de finca privada: respeta cercados y portillas.</p>`;
 let enOrto=false; document.getElementById('bFondo').onclick = ev=>{ enOrto=!enOrto; if(enOrto){mapa.removeLayer(ign);orto.addTo(mapa);}else{mapa.removeLayer(orto);ign.addTo(mapa);} ev.target.textContent = enOrto?'Mapa':'Orto'; };
 let yo=null; document.getElementById('bYo').onclick = ()=>{ if(!navigator.geolocation){ alert('Este navegador no da la posición.'); return; }
   navigator.geolocation.getCurrentPosition(p=>{ const ll=[p.coords.latitude,p.coords.longitude]; if(yo) yo.setLatLng(ll); else yo=L.circleMarker(ll,{radius:7,color:'#fff',weight:3,fillColor:'#1a73e8',fillOpacity:1}).addTo(mapa); mapa.setView(ll,14); },
@@ -197,6 +202,7 @@ const METODO = `<h2>Cómo se calcula</h2>
 <h3>Datos</h3>
 <p>Meteo: Open-Meteo (modelos ECMWF/DWD; 40 días pasados y 7 de previsión, con puntos cada ~5 km). Cotos: WFS de MICOCYL / Junta de Castilla y León. La humedad de suelo por satélite (Copernicus SWI 1 km) va con ~6 semanas de retraso y no entra en el índice diario.</p>
 <p class="sub">Los umbrales sin estudio propio son heurísticos y están marcados [H] en la revisión bibliográfica (docs/revision-bibliografica.md). Generado el ${DATOS.generado}.</p>
+<h3>Cotos y monte</h3><p>Por defecto el mapa muestra los 14 cotos de Salamanca (contorno marrón) y además todo el monte de la provincia según el Mapa Forestal: arbolado, arbolado ralo o disperso y desarbolado, siempre que alguna especie tenga ahí un hábitat de al menos 0,3. El botón «Solo cotos» oculta el resto. Fuera de coto la recolección es episódica: sin permiso, máximo 3 kg por persona y día y sin vender (Decreto 31/2017, art. 13).</p>
 <p class="sub">Recuerda: hace falta permiso de recolección en vigor en cada coto. Nunca comas una seta sin identificación segura: la oronja se confunde en fase de huevo con <i>Amanita phalloides</i>.</p>`;
 
 botones(); pintar();

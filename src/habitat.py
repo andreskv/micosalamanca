@@ -1,4 +1,4 @@
-"""Capa estática de hábitat por especie sobre los cotos micológicos de Salamanca."""
+"""Capa estática de hábitat por especie en los cotos micológicos y el monte de la provincia de Salamanca."""
 import json
 from pathlib import Path
 
@@ -17,6 +17,8 @@ RAIZ = Path(__file__).resolve().parents[1]
 RAW = RAIZ / "datos" / "raw"
 OUT = RAIZ / "datos" / "habitat"
 PIXEL = 65.0  # m en EPSG:3857, ~49 m sobre el terreno a 41° N
+MONTE = ["Arbolado", "Arbolado ralo", "Arbolado disperso", "Desarbolado"]
+UMBRAL_MONTE = 0.3  # fuera de coto solo muestro el monte con hábitat apreciable para alguna especie [H]
 
 # El acotados.json de MICOCYL trae los acentos rotos y le faltan dos nombres.
 NOMBRES = {
@@ -31,8 +33,8 @@ NOMBRES = {
 }
 
 
-def malla(cotos):
-    x0, y0, x1, y1 = cotos.to_crs(3857).total_bounds
+def malla(capa):
+    x0, y0, x1, y1 = capa.to_crs(3857).total_bounds
     x0, y0, x1, y1 = x0 - 1000, y0 - 1000, x1 + 1000, y1 + 1000
     ancho, alto = int(np.ceil((x1 - x0) / PIXEL)), int(np.ceil((y1 - y0) / PIXEL))
     return from_origin(x0, y1, PIXEL, PIXEL), (alto, ancho)
@@ -77,14 +79,16 @@ def main():
     cotos = gpd.read_file(RAW / "cotos_sa.json").set_crs(25830, allow_override=True)
     cotos["nombre"] = cotos.c_clave_id.map(NOMBRES)
     cotos = cotos.sort_values("c_clave_id").reset_index(drop=True)
-    transform, shape = malla(cotos)
+    mfe = gpd.read_file(RAW / "mfe25_salamanca.gpkg")
+    transform, shape = malla(mfe)
+    mfe = mfe.to_crs(3857)
 
-    c3857 = cotos.to_crs(3857)
-    id_coto = rasterize(((g, i + 1) for i, g in enumerate(c3857.geometry)), out_shape=shape,
+    id_coto = rasterize(((g, i + 1) for i, g in enumerate(cotos.to_crs(3857).geometry)), out_shape=shape,
                         transform=transform, dtype="uint8")
-    cotos.to_crs(4326)[["c_clave_id", "nombre", "geometry"]].to_file(OUT / "cotos.geojson", driver="GeoJSON")
+    # simplifico a 15 m: el contorno va dentro del HTML y a esta escala no se nota
+    cotos.assign(geometry=cotos.simplify(15)).to_crs(4326)[["c_clave_id", "nombre", "geometry"]].to_file(
+        OUT / "cotos.geojson", driver="GeoJSON")
 
-    mfe = gpd.read_file(RAW / "mfe25_cotos_sa.gpkg").to_crs(3857)
     z, north, tpi = topografia(transform, shape)
 
     capas = {}
@@ -97,21 +101,27 @@ def main():
         else:
             # vaguadas algo más húmedas que lomas en el verano mediterráneo [H]
             topo = 0.85 + 0.15 * rampa(-np.nan_to_num(tpi), -10, 10)
-        capas[sp] = np.where(id_coto > 0, host * alt * topo, 0).astype("float32")
+        capas[sp] = (host * alt * topo).astype("float32")
+
+    monte = rasterize(mfe[mfe.UsoMFE.isin(MONTE)].geometry, out_shape=shape, transform=transform, dtype="uint8")
+    visible = (id_coto > 0) | ((monte > 0) & (np.max(list(capas.values()), axis=0) >= UMBRAL_MONTE))
+    # guardo en enteros 0-100 (y la altitud en decenas de metros) para no pasar del límite de GitHub
+    capas = {sp: np.where(visible, np.round(h * 100), 0).astype("uint8") for sp, h in capas.items()}
+    elev10 = np.clip(np.round(np.nan_to_num(z) / 10), 0, 254).astype("uint8")
 
     oeste, norte = transform.c, transform.f
     este, sur = oeste + shape[1] * PIXEL, norte - shape[0] * PIXEL
     lon0, lat0 = Transformer.from_crs(3857, 4326, always_xy=True).transform(oeste, sur)
     lon1, lat1 = Transformer.from_crs(3857, 4326, always_xy=True).transform(este, norte)
-    np.savez_compressed(OUT / "habitat.npz", id_coto=id_coto, elev=z, north=north, tpi=tpi, **capas)
+    np.savez_compressed(OUT / "habitat.npz", id_coto=id_coto, visible=visible, elev10=elev10, **capas)
     meta = dict(transform=list(transform)[:6], shape=shape, crs="EPSG:3857",
                 bounds_latlon=[[lat0, lon0], [lat1, lon1]], cotos=list(cotos.c_clave_id),
                 nombres=list(cotos.nombre))
     (OUT / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
     for sp in capas:
-        v = capas[sp][id_coto > 0]
-        print(f"{sp:12s} H medio {v.mean():.2f}  celdas H>0.5: {(v > 0.5).mean():.0%}")
-    print("malla", shape, "celdas en coto", int((id_coto > 0).sum()))
+        v = capas[sp][visible]
+        print(f"{sp:12s} H medio {v.mean() / 100:.2f}  celdas H>0.5: {(v > 50).mean():.0%}")
+    print("malla", shape, "celdas en coto", int((id_coto > 0).sum()), "visibles", int(visible.sum()))
 
 
 if __name__ == "__main__":
