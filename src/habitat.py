@@ -11,7 +11,7 @@ from rasterio.transform import from_origin
 from rasterio.warp import Resampling, reproject
 from scipy.ndimage import uniform_filter
 
-from especies import ESPECIES, HOSPEDADORES, rampa, trapecio
+from especies import CULTIVOS, ESPECIES, HOSPEDADORES, PASTIZALES, rampa, trapecio
 
 RAIZ = Path(__file__).resolve().parents[1]
 RAW = RAIZ / "datos" / "raw"
@@ -58,8 +58,12 @@ def topografia(transform, shape):
 
 
 def hospedador(mfe, especie):
-    w = HOSPEDADORES[especie]
     p = ESPECIES[especie]
+    if p.get("pastizal"):
+        h = mfe["DesTipEstr"].map(PASTIZALES).fillna(0)
+        h = np.where(mfe["UsoMFE"].eq("Cultivos"), CULTIVOS, h)
+        return np.asarray(h * trapecio(mfe["FCCARB"].fillna(0), *p["dosel"]), dtype="float32")
+    w = HOSPEDADORES[especie]
     h = sum(mfe[f"Especie{i}"].map(w).fillna(0) * mfe[f"O{i}"].fillna(0) / 100 for i in (1, 2, 3))
     h = h.clip(0, 1) * trapecio(mfe["FCCARB"].fillna(0), *p["dosel"])
     if p["jara"]:

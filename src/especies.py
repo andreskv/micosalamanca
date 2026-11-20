@@ -41,6 +41,15 @@ HOSPEDADORES = {
     },
 }
 
+# La seta de cardo no va con árboles sino con las raíces muertas del cardo corredor en pastizal
+# abierto, así que su hospedador sale de la estructura del MFE (DesTipEstr) [JCYL-MAN][MAR22]; pesos [H].
+PASTIZALES = {
+    "Herbazal-Pastizal": 1.0, "Herbazal-Pastizal con dehesa hueca": 1.0,
+    "Herbazal-Pastizal con arbolado disperso": 0.9, "Bosque Adehesado": 0.7,
+    "Pastizal-Matorral": 0.6, "Matorral con arbolado disperso": 0.3,
+}
+CULTIVOS = 0.4  # barbechos, lindes y cultivos abandonados [MAR22]
+
 ESPECIES = {
     "edulis": dict(
         nombre="Boletus edulis", comun="Hongo, boleto",
@@ -102,5 +111,19 @@ ESPECIES = {
         dosel=(5, 30, 100, 101),
         jara=0.0,
         insolacion=0.0,
+    ),
+    "eryngii": dict(
+        nombre="Pleurotus eryngii", comun="Seta de cardo",
+        # de mediados de octubre a mediados de diciembre, hasta los hielos continuos [TOB14]
+        temporada=(275, 290, 345, 360),
+        altitud=(-100, 0, 1300, 1550),        # del nivel del mar a 1.500 m [MAR22]
+        dias_lluvia=30, lluvia_mm=(30, 90),   # sale 20-30 d tras lluvias fuertes [MAR22]; umbrales [H]
+        tormentas=False,
+        dias_temp=20, t_opt=12.0, t_sd=4.0,   # temperaturas suaves, noches no muy frías [MAR22][SBZ]; óptimo [H]
+        t_suelo_min=None,
+        dosel=(-1, 0, 20, 50),                # sin arbolado: 1 hasta 20 % de FCC, 0 desde 50 % [MAR22]
+        jara=0.0,
+        insolacion=0.2,                       # zonas soleadas y xerófilas [MAR22]
+        pastizal=True,
     ),
 }

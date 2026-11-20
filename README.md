@@ -1,6 +1,6 @@
 # MicoSalamanca
 
-Índice relativo diario de fructificación de *Boletus edulis*, *B. aereus*, *B. reticulatus*, *Amanita caesarea* y níscalo (*Lactarius deliciosus*) en los 14 cotos micológicos de Salamanca. Cubre hoy y los 7 días siguientes, con celdas de unos 50 m.
+Índice relativo diario de fructificación de *Boletus edulis*, *B. aereus*, *B. reticulatus*, *Amanita caesarea*, níscalo (*Lactarius deliciosus*) y seta de cardo (*Pleurotus eryngii*) en los 14 cotos micológicos de Salamanca. Cubre hoy y los 7 días siguientes, con celdas de unos 50 m.
 
 ## Uso
 
